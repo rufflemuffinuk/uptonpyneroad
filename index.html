@@ -1,0 +1,503 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Upton Pyne — Road status</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;1,9..144,500&family=Karla:wght@400;500;700;800&display=swap');
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    --ink: #1F2A1D;
+    --paper: #EFEFE4;
+    --muted: #6B7264;
+    --line: #D8D5C6;
+    --open: #2F6B3C;
+    --open-wash: #E3EEDC;
+    --closed: #A93A2E;
+    --closed-wash: #F5E0DB;
+    --unknown: #7A7566;
+    --amber: #C1852B;
+    font-family: 'Karla', sans-serif;
+    color: var(--ink);
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    padding: 32px 16px 48px;
+    background: var(--paper);
+    transition: background 0.4s ease;
+  }
+  body.state-open { background: linear-gradient(180deg, var(--open-wash), var(--paper) 55%); }
+  body.state-closed { background: linear-gradient(180deg, var(--closed-wash), var(--paper) 55%); }
+
+  .rs-page { width: 100%; max-width: 420px; display: flex; flex-direction: column; align-items: center; }
+
+  .rs-header { text-align: center; margin-bottom: 16px; }
+  .rs-village { font-size: 14px; letter-spacing: 0.04em; color: var(--muted); font-weight: 500; }
+  .rs-sub-heading { font-family: 'Fraunces', serif; font-style: italic; font-size: 22px; margin-top: 2px; }
+
+  .rs-notice { width: 100%; margin-bottom: 20px; font-size: 13px; color: var(--muted); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; background: rgba(255,255,255,0.5); }
+  .rs-notice summary { cursor: pointer; font-weight: 600; color: var(--ink); }
+  .rs-notice p { margin: 8px 0 0; line-height: 1.5; }
+
+  .rs-plate {
+    width: 100%;
+    border: 3px solid var(--ink);
+    border-radius: 14px;
+    background: #fff;
+    padding: 40px 20px;
+    text-align: center;
+    position: relative;
+    box-shadow: 0 2px 0 var(--ink);
+    margin-bottom: 16px;
+  }
+  .rs-plate.unconfirmed { border-style: dashed; box-shadow: none; }
+  .rs-plate.stale { border-color: var(--amber); }
+  .rs-rivet { position: absolute; width: 8px; height: 8px; border-radius: 50%; background: var(--line); border: 1px solid var(--ink); opacity: 0.5; }
+  .rs-rivet.tl { top: 10px; left: 10px; }
+  .rs-rivet.tr { top: 10px; right: 10px; }
+  .rs-rivet.bl { bottom: 10px; left: 10px; }
+  .rs-rivet.br { bottom: 10px; right: 10px; }
+
+  .rs-word { font-weight: 800; font-size: clamp(3.2rem, 16vw, 6rem); line-height: 0.95; letter-spacing: -0.01em; margin: 0; }
+  .rs-word.open { color: var(--open); }
+  .rs-word.closed { color: var(--closed); }
+  .rs-word.unknown { color: var(--unknown); font-size: clamp(1.8rem, 8vw, 2.6rem); }
+  .rs-word.guess { font-weight: 600; opacity: 0.72; font-size: clamp(2.4rem, 11vw, 4rem); }
+
+  .rs-sub { font-family: 'Fraunces', serif; font-style: italic; color: var(--muted); font-size: 15px; margin-top: 10px; }
+  .rs-stale-warning { font-family: 'Karla', sans-serif; font-style: normal; font-weight: 600; color: var(--amber); font-size: 13px; margin-top: 10px; }
+
+  .rs-share {
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    width: 100%; background: transparent; border: 1.5px solid var(--line); color: var(--ink);
+    border-radius: 10px; padding: 12px 16px; font-family: 'Karla'; font-weight: 600; font-size: 15px;
+    cursor: pointer; margin-bottom: 24px; transition: border-color .15s ease, background .15s ease;
+  }
+  .rs-share:hover { border-color: var(--ink); background: rgba(0,0,0,0.03); }
+  .rs-share[hidden] { display: none; }
+
+  .rs-input {
+    padding: 10px 12px; border-radius: 8px; border: 1.5px solid var(--line);
+    font-family: 'Karla'; font-size: 15px; background: #fff; color: var(--ink); box-sizing: border-box;
+  }
+  .rs-inline-name { display: flex; gap: 8px; margin-top: 10px; }
+  .rs-inline-name .rs-input { flex: 1; }
+  #statusNameSubmit {
+    padding: 10px 16px; border-radius: 8px; border: none; background: var(--ink); color: #fff;
+    font-weight: 700; cursor: pointer; font-family: 'Karla'; font-size: 15px;
+  }
+  .rs-link-btn {
+    background: none; border: none; color: var(--muted); text-decoration: underline; cursor: pointer;
+    padding: 10px 4px; font-family: 'Karla'; font-size: 14px;
+  }
+
+  .rs-update-box { width: 100%; border-top: 1px dashed var(--line); padding-top: 20px; }
+  .rs-update-heading { font-weight: 700; font-size: 14px; }
+  .rs-update-sub { color: var(--muted); font-size: 13px; margin-top: 2px; margin-bottom: 14px; }
+
+  .rs-toggle { display: flex; gap: 10px; margin-bottom: 8px; }
+  .rs-toggle-btn {
+    flex: 1; padding: 16px 0; font-family: 'Karla'; font-weight: 700; font-size: 16px;
+    border-radius: 10px; border: 2px solid var(--line); background: #fff; color: var(--muted);
+    cursor: pointer; transition: all .15s ease;
+  }
+  .rs-toggle-btn.active.open { border-color: var(--open); background: var(--open-wash); color: var(--open); }
+  .rs-toggle-btn.active.closed { border-color: var(--closed); background: var(--closed-wash); color: var(--closed); }
+  .rs-toggle-btn:disabled { opacity: 0.6; cursor: default; }
+
+  .rs-log { width: 100%; margin-top: 24px; border-top: 1px dashed var(--line); padding-top: 14px; }
+  .rs-log-heading { font-size: 13px; font-weight: 700; color: var(--muted); margin-bottom: 8px; }
+  .rs-log-row { display: flex; align-items: baseline; gap: 8px; font-size: 13px; padding: 4px 0; flex-wrap: wrap; }
+  .rs-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .rs-dot.open { background: var(--open); }
+  .rs-dot.closed { background: var(--closed); }
+  .rs-log-name { font-weight: 600; }
+  .rs-log-status { color: var(--muted); text-transform: capitalize; }
+  .rs-log-time { margin-left: auto; color: var(--muted); }
+
+  .rs-comments-box { width: 100%; border-top: 1px dashed var(--line); padding-top: 16px; margin-top: 20px; }
+  .rs-add-update-toggle {
+    background: none; border: none; color: var(--muted); font-family: 'Karla'; font-weight: 600; font-size: 14px;
+    cursor: pointer; padding: 4px 0; text-decoration: underline; text-decoration-style: dotted;
+  }
+  .rs-add-update-toggle:hover { color: var(--ink); }
+  .rs-comments-form { margin-top: 12px; }
+  textarea#commentInput {
+    width: 100%; padding: 10px 12px; border-radius: 8px; border: 1.5px solid var(--line);
+    font-family: 'Karla'; font-size: 15px; resize: vertical; box-sizing: border-box;
+  }
+  .rs-comments-actions { display: flex; align-items: center; gap: 4px; margin-top: 10px; }
+  button#commentBtn {
+    padding: 10px 16px; border-radius: 8px; border: none; background: var(--ink); color: #fff;
+    font-weight: 700; cursor: pointer; font-family: 'Karla'; font-size: 15px;
+  }
+  button#commentBtn:disabled { opacity: 0.6; cursor: default; }
+
+  .rs-comment-log { width: 100%; margin-top: 22px; border-top: 1px dashed var(--line); padding-top: 14px; }
+  .rs-comment-row { padding: 8px 0; border-bottom: 1px solid var(--line); }
+  .rs-comment-row:last-child { border-bottom: none; }
+  .rs-comment-meta { font-size: 12px; color: var(--muted); margin-bottom: 3px; }
+  .rs-comment-meta .rs-comment-name { font-weight: 600; color: var(--ink); }
+  .rs-comment-text { font-size: 14px; }
+
+  .rs-footer { margin-top: 24px; font-size: 12px; color: var(--muted); text-align: center; line-height: 1.5; }
+  .rs-error { color: var(--closed); font-size: 13px; margin-bottom: 10px; }
+  .rs-error[hidden] { display: none; }
+
+  @media (prefers-reduced-motion: reduce) {
+    body, .rs-toggle-btn, .rs-share { transition: none; }
+  }
+</style>
+</head>
+<body>
+  <div class="rs-page">
+    <div class="rs-header">
+      <div class="rs-village">Upton Pyne</div>
+      <div class="rs-sub-heading">Road status</div>
+    </div>
+
+    <details class="rs-notice">
+      <summary>About this page</summary>
+      <p>We know a road closure is scheduled on the road from Upton Pyne Cross to Pye Corner until early October.</p>
+      <p>This is a micro website to track when the road is open and closed based on resident reports.</p>
+      <p>Based on what we know, the road is expected to be open from 16:00 to 8:30am daily and at weekends, and closed on weekdays while work is underway — until a resident reports otherwise.</p>
+      <p>Once someone reports it, that report is what's shown, and it stays showing until someone updates it again — it doesn't switch back automatically. If a report starts to look old, the page will flag it and ask for someone to confirm.</p>
+    </details>
+
+    <div class="rs-plate" id="plateEl" role="status" aria-live="polite">
+      <span class="rs-rivet tl" aria-hidden="true"></span>
+      <span class="rs-rivet tr" aria-hidden="true"></span>
+      <span class="rs-rivet bl" aria-hidden="true"></span>
+      <span class="rs-rivet br" aria-hidden="true"></span>
+      <p class="rs-word unknown" id="wordEl">Checking…</p>
+      <div class="rs-sub" id="subEl"></div>
+      <div class="rs-stale-warning" id="staleWarning" hidden>This may be out of date — tap Open or Closed below to confirm.</div>
+    </div>
+
+    <button class="rs-share" id="shareBtn" hidden>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+        <path d="M21 11.5a8.5 8.5 0 0 1-8.5 8.5 8.4 8.4 0 0 1-4.2-1.1L3 20l1.1-5.3A8.4 8.4 0 0 1 3 11.5a8.5 8.5 0 0 1 17 0Z" />
+      </svg>
+      Share this update
+    </button>
+
+    <div class="rs-error" id="errorEl" hidden></div>
+
+    <div class="rs-update-box">
+      <div class="rs-update-heading">Update the status</div>
+      <div class="rs-update-sub">Anyone can report what they see.</div>
+
+      <div class="rs-toggle" role="group" aria-label="Update road status">
+        <button class="rs-toggle-btn open" id="openBtn">Open</button>
+        <button class="rs-toggle-btn closed" id="closedBtn">Closed</button>
+      </div>
+
+      <div class="rs-inline-name" id="statusNamePrompt" hidden>
+        <input class="rs-input" id="statusNameInput" list="namesList" placeholder="Your name" autocomplete="off" />
+        <button id="statusNameSubmit">Confirm</button>
+      </div>
+      <datalist id="namesList"></datalist>
+    </div>
+
+    <div class="rs-log" id="logSection" hidden>
+      <div class="rs-log-heading">Recent reports</div>
+      <div id="logList"></div>
+    </div>
+
+    <div class="rs-comments-box">
+      <button class="rs-add-update-toggle" id="addUpdateToggle" aria-expanded="false">+ Add an update</button>
+      <div class="rs-comments-form" id="commentsForm" hidden>
+        <textarea id="commentInput" rows="3" placeholder="Add any extra detail — e.g. &quot;only small cars getting through&quot;"></textarea>
+        <div class="rs-inline-name" id="commentNamePrompt" hidden>
+          <input class="rs-input" id="commentNameInput" list="namesList" placeholder="Your name" autocomplete="off" />
+        </div>
+        <div class="rs-comments-actions">
+          <button id="commentBtn">Post update</button>
+          <button id="commentCancelBtn" class="rs-link-btn" type="button">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="rs-comment-log" id="commentLogSection" hidden>
+      <div class="rs-log-heading">Comments</div>
+      <div id="commentLogList"></div>
+    </div>
+
+    <div class="rs-footer">
+      This page is shared with the whole village — please only report what you can actually see.
+    </div>
+  </div>
+
+<script>
+  const namesList = document.getElementById('namesList');
+  const plateEl = document.getElementById('plateEl');
+  const wordEl = document.getElementById('wordEl');
+  const subEl = document.getElementById('subEl');
+  const staleWarning = document.getElementById('staleWarning');
+  const shareBtn = document.getElementById('shareBtn');
+  const errorEl = document.getElementById('errorEl');
+  const openBtn = document.getElementById('openBtn');
+  const closedBtn = document.getElementById('closedBtn');
+  const statusNamePrompt = document.getElementById('statusNamePrompt');
+  const statusNameInput = document.getElementById('statusNameInput');
+  const statusNameSubmit = document.getElementById('statusNameSubmit');
+  const logSection = document.getElementById('logSection');
+  const logList = document.getElementById('logList');
+  const addUpdateToggle = document.getElementById('addUpdateToggle');
+  const commentsForm = document.getElementById('commentsForm');
+  const commentNamePrompt = document.getElementById('commentNamePrompt');
+  const commentNameInput = document.getElementById('commentNameInput');
+  const commentInput = document.getElementById('commentInput');
+  const commentBtn = document.getElementById('commentBtn');
+  const commentCancelBtn = document.getElementById('commentCancelBtn');
+  const commentLogSection = document.getElementById('commentLogSection');
+  const commentLogList = document.getElementById('commentLogList');
+
+  let name = localStorage.getItem('rs-name') || '';
+  let pendingStatus = null;
+
+  let currentStatus = null;
+
+  function formatDateTime(iso) {
+    const d = new Date(iso);
+    return d.toLocaleString([], { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  }
+
+  function timeAgo(iso) {
+    const diffMin = Math.round((new Date() - new Date(iso)) / 60000);
+    if (diffMin < 1) return 'just now';
+    if (diffMin < 60) return `${diffMin} min ago`;
+    const diffHr = Math.round(diffMin / 60);
+    if (diffHr < 24) return `${diffHr} hour${diffHr === 1 ? '' : 's'} ago`;
+    const diffDay = Math.round(diffHr / 24);
+    return `${diffDay} day${diffDay === 1 ? '' : 's'} ago`;
+  }
+
+  // Workmen are expected on site weekdays 08:30–16:00. Outside that,
+  // and all weekend, the road is presumed open unless someone says otherwise.
+  function isWorkWindow(date) {
+    const day = date.getDay(); // 0 Sun ... 6 Sat
+    if (day === 0 || day === 6) return false;
+    const mins = date.getHours() * 60 + date.getMinutes();
+    return mins >= 8 * 60 + 30 && mins < 16 * 60;
+  }
+  function scheduleGuess(date) {
+    return isWorkWindow(date) ? 'closed' : 'open';
+  }
+
+  function updateNameSuggestions(status, log, comments) {
+    const names = new Set();
+    if (status) names.add(status.name);
+    (log || []).forEach(e => names.add(e.name));
+    (comments || []).forEach(c => names.add(c.name));
+    namesList.innerHTML = '';
+    names.forEach(n => {
+      const opt = document.createElement('option');
+      opt.value = n;
+      namesList.appendChild(opt);
+    });
+  }
+
+  function render(status, log, comments) {
+    currentStatus = status;
+    document.body.classList.remove('state-open', 'state-closed');
+    if (!status) {
+      const guess = scheduleGuess(new Date());
+      plateEl.classList.add('unconfirmed');
+      plateEl.classList.remove('stale');
+      staleWarning.hidden = true;
+      document.body.classList.add(guess === 'open' ? 'state-open' : 'state-closed');
+      wordEl.className = 'rs-word guess ' + guess;
+      wordEl.textContent = guess === 'open' ? 'Probably open' : 'Probably closed';
+      subEl.textContent = "No one's reported it yet — this is a guess, based on the known work schedule.";
+      shareBtn.hidden = true;
+      openBtn.classList.remove('active', 'open');
+      closedBtn.classList.remove('active', 'closed');
+    } else {
+      plateEl.classList.remove('unconfirmed');
+      const guessNow = scheduleGuess(new Date());
+      const stale = guessNow !== status.status;
+      plateEl.classList.toggle('stale', stale);
+      staleWarning.hidden = !stale;
+      document.body.classList.add(status.status === 'open' ? 'state-open' : 'state-closed');
+      wordEl.className = 'rs-word ' + status.status;
+      wordEl.textContent = status.status === 'open' ? 'OPEN' : 'CLOSED';
+      subEl.textContent = `Marked by ${status.name} · ${formatDateTime(status.timestamp)} (${timeAgo(status.timestamp)})`;
+      shareBtn.hidden = false;
+      openBtn.classList.toggle('active', status.status === 'open');
+      openBtn.classList.toggle('open', status.status === 'open');
+      closedBtn.classList.toggle('active', status.status === 'closed');
+      closedBtn.classList.toggle('closed', status.status === 'closed');
+    }
+
+    if (log && log.length) {
+      logSection.hidden = false;
+      logList.innerHTML = '';
+      log.forEach(entry => {
+        const row = document.createElement('div');
+        row.className = 'rs-log-row';
+        row.innerHTML = `
+          <span class="rs-dot ${entry.status}"></span>
+          <span class="rs-log-name">${entry.name}</span>
+          <span class="rs-log-status">${entry.status}</span>
+          <span class="rs-log-time">${formatDateTime(entry.timestamp)}</span>
+        `;
+        logList.appendChild(row);
+      });
+    } else {
+      logSection.hidden = true;
+    }
+
+    if (comments && comments.length) {
+      commentLogSection.hidden = false;
+      commentLogList.innerHTML = '';
+      comments.forEach(c => {
+        const row = document.createElement('div');
+        row.className = 'rs-comment-row';
+        row.innerHTML = `
+          <div class="rs-comment-meta"><span class="rs-comment-name">${c.name}</span> · ${formatDateTime(c.timestamp)}</div>
+          <div class="rs-comment-text"></div>
+        `;
+        row.querySelector('.rs-comment-text').textContent = c.comment;
+        commentLogList.appendChild(row);
+      });
+    } else {
+      commentLogSection.hidden = true;
+    }
+
+    updateNameSuggestions(status, log, comments);
+  }
+
+  async function load() {
+    try {
+      const res = await fetch('/api/status');
+      if (!res.ok) throw new Error('bad response');
+      const data = await res.json();
+      render(data.status, data.log, data.comments);
+      errorEl.hidden = true;
+    } catch (e) {
+      errorEl.hidden = false;
+      errorEl.textContent = "Couldn't reach the status service. Showing the last known state.";
+    }
+  }
+
+  function saveName(raw) {
+    const trimmed = raw.trim();
+    if (trimmed) {
+      name = trimmed;
+      localStorage.setItem('rs-name', name);
+    }
+    return name;
+  }
+
+  async function reportStatus(newStatus) {
+    if (!name) {
+      pendingStatus = newStatus;
+      statusNamePrompt.hidden = false;
+      statusNameInput.value = '';
+      statusNameInput.focus();
+      return;
+    }
+    openBtn.disabled = true; closedBtn.disabled = true;
+    errorEl.hidden = true;
+    try {
+      const res = await fetch('/api/status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'status', name, status: newStatus })
+      });
+      if (!res.ok) throw new Error('bad response');
+      statusNamePrompt.hidden = true;
+      await load();
+    } catch (e) {
+      errorEl.hidden = false;
+      errorEl.textContent = "Couldn't save that — check your connection and try again.";
+    }
+    openBtn.disabled = false; closedBtn.disabled = false;
+  }
+
+  statusNameSubmit.addEventListener('click', () => {
+    const n = saveName(statusNameInput.value);
+    if (!n) { statusNameInput.focus(); return; }
+    statusNamePrompt.hidden = true;
+    if (pendingStatus) {
+      const s = pendingStatus;
+      pendingStatus = null;
+      reportStatus(s);
+    }
+  });
+  statusNameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') statusNameSubmit.click(); });
+
+  addUpdateToggle.addEventListener('click', () => {
+    const opening = commentsForm.hidden;
+    commentsForm.hidden = !opening;
+    addUpdateToggle.setAttribute('aria-expanded', String(opening));
+    if (opening) {
+      commentNamePrompt.hidden = !!name;
+      (name ? commentInput : commentNameInput).focus();
+    } else {
+      commentInput.value = '';
+      errorEl.hidden = true;
+    }
+  });
+
+  commentCancelBtn.addEventListener('click', () => {
+    commentsForm.hidden = true;
+    addUpdateToggle.setAttribute('aria-expanded', 'false');
+    commentInput.value = '';
+    errorEl.hidden = true;
+  });
+
+  async function postComment() {
+    let n = name;
+    if (!n) {
+      n = saveName(commentNameInput.value);
+      if (!n) { commentNameInput.focus(); return; }
+    }
+    const text = commentInput.value.trim();
+    if (!text) {
+      errorEl.hidden = false;
+      errorEl.textContent = 'Write something before posting.';
+      commentInput.focus();
+      return;
+    }
+    commentBtn.disabled = true;
+    errorEl.hidden = true;
+    try {
+      const res = await fetch('/api/status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'comment', name: n, comment: text })
+      });
+      if (!res.ok) throw new Error('bad response');
+      commentInput.value = '';
+      commentsForm.hidden = true;
+      addUpdateToggle.setAttribute('aria-expanded', 'false');
+      load();
+    } catch (e) {
+      errorEl.hidden = false;
+      errorEl.textContent = "Couldn't post that — check your connection and try again.";
+    }
+    commentBtn.disabled = false;
+  }
+
+  openBtn.addEventListener('click', () => reportStatus('open'));
+  closedBtn.addEventListener('click', () => reportStatus('closed'));
+  commentBtn.addEventListener('click', postComment);
+
+  shareBtn.addEventListener('click', () => {
+    if (!currentStatus) return;
+    const text = `Upton Pyne — the road is ${currentStatus.status.toUpperCase()}. Marked by ${currentStatus.name}, ${formatDateTime(currentStatus.timestamp)}.`;
+    window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, '_blank');
+  });
+
+  load();
+  setInterval(load, 20000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) load(); });
+</script>
+</body>
+</html>

@@ -1,0 +1,8 @@
+{
+  "name": "upton-pyne-road-status",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@netlify/blobs": "latest"
+  }
+}
